@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: rental-management-system
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: RobinXavier
+    password: admin@123
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: rental_management
+    open-in-view: false
+  
+  security:
+    jwt:
+      secret: ${JWT_SECRET:your-secret-key-change-in-production-min-256-bits}
+      expiration: 86400000 # 24 hours in milliseconds
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+springdoc:
+  api-docs:
+    path: /v1/api-docs
+  swagger-ui:
+    path: /swagger-ui
+    enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.rental: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+
