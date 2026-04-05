@@ -17,5 +17,8 @@ public interface InventoryTransactionRepository extends JpaRepository<InventoryT
     List<InventoryTransaction> findByVariantVariantId(@Param("variantId") Integer variantId);
     
     List<InventoryTransaction> findByTransactionType(String transactionType);
+
+    @Query("SELECT it FROM InventoryTransaction it WHERE it.booking.bookingId = :bookingId AND it.transactionType IN :types")
+    List<InventoryTransaction> findByBookingBookingIdAndTransactionTypeIn(@Param("bookingId") Integer bookingId, @Param("types") List<String> types);
 }
 

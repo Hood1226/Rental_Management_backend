@@ -22,6 +22,10 @@ public class ProductRequest {
     private String description;
     
     private BigDecimal depositAmount;
+
+    private BigDecimal discountPercent = BigDecimal.ZERO;
+
+    private BigDecimal maxDiscountPercent = BigDecimal.ZERO;
     
     private Boolean isForSale = false;
     
@@ -59,6 +63,22 @@ public class ProductRequest {
 
 	public void setDepositAmount(BigDecimal depositAmount) {
 		this.depositAmount = depositAmount;
+	}
+
+	public BigDecimal getDiscountPercent() {
+		return discountPercent;
+	}
+
+	public void setDiscountPercent(BigDecimal discountPercent) {
+		this.discountPercent = discountPercent;
+	}
+
+	public BigDecimal getMaxDiscountPercent() {
+		return maxDiscountPercent;
+	}
+
+	public void setMaxDiscountPercent(BigDecimal maxDiscountPercent) {
+		this.maxDiscountPercent = maxDiscountPercent;
 	}
 
 	public Boolean getIsForSale() {

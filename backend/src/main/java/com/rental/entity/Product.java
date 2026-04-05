@@ -26,6 +26,9 @@ public class Product {
     
     @Column(name = "product_name", nullable = false, length = 150)
     private String productName;
+
+    @Column(name = "product_code", nullable = false, length = 30, unique = true)
+    private String productCode;
     
     @Column(name = "category", length = 100)
     private String category;
@@ -35,6 +38,12 @@ public class Product {
     
     @Column(name = "deposit_amount", precision = 10, scale = 2)
     private BigDecimal depositAmount;
+
+    @Column(name = "discount_percent", precision = 5, scale = 2)
+    private BigDecimal discountPercent = BigDecimal.ZERO;
+
+    @Column(name = "max_discount_percent", precision = 5, scale = 2)
+    private BigDecimal maxDiscountPercent = BigDecimal.ZERO;
     
     @Column(name = "is_for_sale", nullable = false)
     private Boolean isForSale = false;
@@ -83,6 +92,14 @@ public class Product {
 		this.category = category;
 	}
 
+	public String getProductCode() {
+		return productCode;
+	}
+
+	public void setProductCode(String productCode) {
+		this.productCode = productCode;
+	}
+
 	public String getDescription() {
 		return description;
 	}
@@ -97,6 +114,22 @@ public class Product {
 
 	public void setDepositAmount(BigDecimal depositAmount) {
 		this.depositAmount = depositAmount;
+	}
+
+	public BigDecimal getDiscountPercent() {
+		return discountPercent;
+	}
+
+	public void setDiscountPercent(BigDecimal discountPercent) {
+		this.discountPercent = discountPercent;
+	}
+
+	public BigDecimal getMaxDiscountPercent() {
+		return maxDiscountPercent;
+	}
+
+	public void setMaxDiscountPercent(BigDecimal maxDiscountPercent) {
+		this.maxDiscountPercent = maxDiscountPercent;
 	}
 
 	public Boolean getIsForSale() {

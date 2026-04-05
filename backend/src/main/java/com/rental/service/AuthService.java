@@ -2,6 +2,7 @@ package com.rental.service;
 
 import com.rental.dto.request.LoginRequest;
 import com.rental.dto.request.RegisterRequest;
+import com.rental.dto.response.CurrentUserResponse;
 import com.rental.dto.response.LoginResponse;
 import com.rental.entity.AppUser;
 import com.rental.entity.Role;
@@ -137,6 +138,22 @@ public class AuthService {
                 user.getUserId(),
                 user.getUserName(),
                 user.getEmail(),
+                user.getRole().getRoleName()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public CurrentUserResponse getCurrentUser(String emailOrMobile) {
+        AppUser user = appUserRepository.findByEmailOrContactNumberWithRole(emailOrMobile)
+                .orElseThrow(() -> new AuthenticationException("User not found"));
+        if (!user.getStatus()) {
+            throw new AuthenticationException("User account is deactivated");
+        }
+        return new CurrentUserResponse(
+                user.getUserId(),
+                user.getUserName(),
+                user.getEmail(),
+                user.getRole().getRoleId(),
                 user.getRole().getRoleName()
         );
     }

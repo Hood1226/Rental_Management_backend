@@ -15,9 +15,12 @@ import java.util.List;
 public class ProductResponse {
     private Integer productId;
     private String productName;
+    private String productCode;
     private String category;
     private String description;
     private BigDecimal depositAmount;
+    private BigDecimal discountPercent;
+    private BigDecimal maxDiscountPercent;
     private Boolean isForSale;
     private Boolean isForRent;
     private Boolean isActive;
@@ -173,6 +176,12 @@ public class ProductResponse {
     public void setProductName(String productName) {
         this.productName = productName;
     }
+    public String getProductCode() {
+        return productCode;
+    }
+    public void setProductCode(String productCode) {
+        this.productCode = productCode;
+    }
     public String getCategory() {
         return category;
     }
@@ -190,6 +199,18 @@ public class ProductResponse {
     }
     public void setDepositAmount(BigDecimal depositAmount) {
         this.depositAmount = depositAmount;
+    }
+    public BigDecimal getDiscountPercent() {
+        return discountPercent;
+    }
+    public void setDiscountPercent(BigDecimal discountPercent) {
+        this.discountPercent = discountPercent;
+    }
+    public BigDecimal getMaxDiscountPercent() {
+        return maxDiscountPercent;
+    }
+    public void setMaxDiscountPercent(BigDecimal maxDiscountPercent) {
+        this.maxDiscountPercent = maxDiscountPercent;
     }
     public Boolean getIsForSale() {
         return isForSale;

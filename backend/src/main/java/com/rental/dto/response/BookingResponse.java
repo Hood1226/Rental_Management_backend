@@ -14,12 +14,20 @@ import java.util.List;
 @AllArgsConstructor
 public class BookingResponse {
     private Integer bookingId;
+    private String bookingNo;
     private Integer customerId;
     private String customerName;
+    private Integer shopId;
+    private String shopName;
+    private Integer branchId;
+    private String branchName;
     private String bookingType;
     private LocalDateTime bookingDate;
     private String status;
     private BigDecimal totalAmount;
+    private Boolean isAdvanceBooking;
+    private LocalDate scheduledDate;
+    private BigDecimal advancePaymentAmount;
     private String createdBy;
     private LocalDateTime createdAt;
     private String updatedBy;
@@ -33,6 +41,14 @@ public class BookingResponse {
 
 	public void setBookingId(Integer bookingId) {
 		this.bookingId = bookingId;
+	}
+
+	public String getBookingNo() {
+		return bookingNo;
+	}
+
+	public void setBookingNo(String bookingNo) {
+		this.bookingNo = bookingNo;
 	}
 
 	public Integer getCustomerId() {
@@ -49,6 +65,38 @@ public class BookingResponse {
 
 	public void setCustomerName(String customerName) {
 		this.customerName = customerName;
+	}
+
+	public Integer getShopId() {
+		return shopId;
+	}
+
+	public void setShopId(Integer shopId) {
+		this.shopId = shopId;
+	}
+
+	public String getShopName() {
+		return shopName;
+	}
+
+	public void setShopName(String shopName) {
+		this.shopName = shopName;
+	}
+
+	public Integer getBranchId() {
+		return branchId;
+	}
+
+	public void setBranchId(Integer branchId) {
+		this.branchId = branchId;
+	}
+
+	public String getBranchName() {
+		return branchName;
+	}
+
+	public void setBranchName(String branchName) {
+		this.branchName = branchName;
 	}
 
 	public String getBookingType() {
@@ -81,6 +129,30 @@ public class BookingResponse {
 
 	public void setTotalAmount(BigDecimal totalAmount) {
 		this.totalAmount = totalAmount;
+	}
+
+	public Boolean getIsAdvanceBooking() {
+		return isAdvanceBooking;
+	}
+
+	public void setIsAdvanceBooking(Boolean isAdvanceBooking) {
+		this.isAdvanceBooking = isAdvanceBooking;
+	}
+
+	public LocalDate getScheduledDate() {
+		return scheduledDate;
+	}
+
+	public void setScheduledDate(LocalDate scheduledDate) {
+		this.scheduledDate = scheduledDate;
+	}
+
+	public BigDecimal getAdvancePaymentAmount() {
+		return advancePaymentAmount;
+	}
+
+	public void setAdvancePaymentAmount(BigDecimal advancePaymentAmount) {
+		this.advancePaymentAmount = advancePaymentAmount;
 	}
 
 	public String getCreatedBy() {
@@ -142,6 +214,9 @@ public class BookingResponse {
         private String sizeCode;
         private Integer quantity;
         private BigDecimal unitPrice;
+        private BigDecimal discountPercent;
+        private BigDecimal discountAmount;
+        private BigDecimal finalUnitPrice;
         private LocalDate rentalStart;
         private LocalDate rentalEnd;
         private BigDecimal subtotal;
@@ -186,6 +261,24 @@ public class BookingResponse {
 		}
 		public void setUnitPrice(BigDecimal unitPrice) {
 			this.unitPrice = unitPrice;
+		}
+		public BigDecimal getDiscountPercent() {
+			return discountPercent;
+		}
+		public void setDiscountPercent(BigDecimal discountPercent) {
+			this.discountPercent = discountPercent;
+		}
+		public BigDecimal getDiscountAmount() {
+			return discountAmount;
+		}
+		public void setDiscountAmount(BigDecimal discountAmount) {
+			this.discountAmount = discountAmount;
+		}
+		public BigDecimal getFinalUnitPrice() {
+			return finalUnitPrice;
+		}
+		public void setFinalUnitPrice(BigDecimal finalUnitPrice) {
+			this.finalUnitPrice = finalUnitPrice;
 		}
 		public LocalDate getRentalStart() {
 			return rentalStart;

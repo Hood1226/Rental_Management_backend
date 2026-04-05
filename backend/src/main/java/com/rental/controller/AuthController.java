@@ -2,7 +2,9 @@ package com.rental.controller;
 
 import com.rental.dto.request.LoginRequest;
 import com.rental.dto.request.RegisterRequest;
+import com.rental.exception.AuthenticationException;
 import com.rental.dto.response.ApiResponse;
+import com.rental.dto.response.CurrentUserResponse;
 import com.rental.dto.response.LoginResponse;
 import com.rental.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,11 +20,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/auth")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3002"}, allowCredentials = "true")
 @RequiredArgsConstructor
 @Tag(name = "Authentication", description = "Authentication APIs - Login, Register, and Logout")
 public class AuthController {
@@ -37,6 +40,17 @@ public class AuthController {
     
     private static final String TOKEN_COOKIE_NAME = "authToken";
     
+    @GetMapping("/me")
+    @Operation(summary = "Get current user", description = "Returns the currently authenticated user (requires valid JWT cookie).")
+    public ResponseEntity<CurrentUserResponse> getCurrentUser(Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        if (username == null || username.isEmpty()) {
+            throw new AuthenticationException("Not authenticated");
+        }
+        CurrentUserResponse user = authService.getCurrentUser(username);
+        return ResponseEntity.ok(user);
+    }
+
     @PostMapping("/login")
     @Operation(summary = "User login", description = "Authenticate user with email or mobile number and password. Returns JWT token in HTTP-only cookie.")
     @ApiResponses(value = {

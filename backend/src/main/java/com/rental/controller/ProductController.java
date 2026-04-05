@@ -22,7 +22,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/products")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3002"}, allowCredentials = "true")
 @Tag(name = "Products", description = "Product management APIs - CRUD operations for products")
 @SecurityRequirement(name = "bearerAuth")
 public class ProductController {

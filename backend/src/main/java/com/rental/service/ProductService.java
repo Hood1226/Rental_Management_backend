@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,6 +40,12 @@ public class ProductService {
     
     @Autowired
     private InventoryRepository inventoryRepository;
+
+    @Autowired
+    private SequenceCounterRepository sequenceCounterRepository;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
     
     @Transactional(readOnly = true)
     public List<ProductResponse> getAllProducts() {
@@ -70,16 +77,22 @@ public class ProductService {
         
         // Create product
         Product product = new Product();
+        validateDiscounts(request.getDiscountPercent(), request.getMaxDiscountPercent());
         product.setProductName(request.getProductName());
+        product.setProductCode(generateProductCode(request.getProductName()));
         product.setCategory(request.getCategory());
         product.setDescription(request.getDescription());
         product.setDepositAmount(request.getDepositAmount());
+        product.setDiscountPercent(defaultPercent(request.getDiscountPercent()));
+        product.setMaxDiscountPercent(defaultPercent(request.getMaxDiscountPercent()));
         product.setIsForSale(request.getIsForSale() != null ? request.getIsForSale() : false);
         product.setIsForRent(request.getIsForRent() != null ? request.getIsForRent() : true);
         product.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
         
         Product savedProduct = productRepository.save(product);
         logger.info("Product created successfully with ID: {}", savedProduct.getProductId());
+        auditLogRepository.save(createAuditLog("product", savedProduct.getProductId(), "INSERT", null,
+                String.format("{\"productName\":\"%s\",\"productCode\":\"%s\"}", savedProduct.getProductName(), savedProduct.getProductCode())));
         
         // Create variants with prices and inventory
         if (request.getVariants() != null && !request.getVariants().isEmpty()) {
@@ -102,10 +115,15 @@ public class ProductService {
                 });
         
         // Update product fields
+        validateDiscounts(request.getDiscountPercent(), request.getMaxDiscountPercent());
         product.setProductName(request.getProductName());
         product.setCategory(request.getCategory());
         product.setDescription(request.getDescription());
         product.setDepositAmount(request.getDepositAmount());
+        BigDecimal oldDiscount = product.getDiscountPercent();
+        BigDecimal newDiscount = defaultPercent(request.getDiscountPercent());
+        product.setDiscountPercent(newDiscount);
+        product.setMaxDiscountPercent(defaultPercent(request.getMaxDiscountPercent()));
         if (request.getIsForSale() != null) {
             product.setIsForSale(request.getIsForSale());
         }
@@ -118,6 +136,15 @@ public class ProductService {
         
         Product updatedProduct = productRepository.save(product);
         logger.info("Product updated successfully: {}", updatedProduct.getProductName());
+        if (oldDiscount == null || oldDiscount.compareTo(newDiscount) != 0) {
+            auditLogRepository.save(createAuditLog(
+                    "product",
+                    updatedProduct.getProductId(),
+                    "UPDATE",
+                    String.format("{\"discountPercent\":\"%s\"}", oldDiscount),
+                    String.format("{\"discountPercent\":\"%s\"}", newDiscount)
+            ));
+        }
         
         // Update variants if provided
         if (request.getVariants() != null && !request.getVariants().isEmpty()) {
@@ -282,9 +309,12 @@ public class ProductService {
         ProductResponse response = new ProductResponse();
         response.setProductId(product.getProductId());
         response.setProductName(product.getProductName());
+        response.setProductCode(product.getProductCode());
         response.setCategory(product.getCategory());
         response.setDescription(product.getDescription());
         response.setDepositAmount(product.getDepositAmount());
+        response.setDiscountPercent(product.getDiscountPercent());
+        response.setMaxDiscountPercent(product.getMaxDiscountPercent());
         response.setIsForSale(product.getIsForSale());
         response.setIsForRent(product.getIsForRent());
         response.setIsActive(product.getIsActive());
@@ -337,5 +367,56 @@ public class ProductService {
         
         response.setVariants(variantResponses);
         return response;
+    }
+
+    private BigDecimal defaultPercent(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private String generateProductCode(String productName) {
+        String normalized = productName == null ? "" : productName.trim();
+        if (normalized.isEmpty()) {
+            normalized = "X";
+        }
+        String firstLetter = normalized.substring(0, 1).toUpperCase(Locale.ROOT);
+        String sequenceKey = "PRODUCT_" + firstLetter;
+
+        SequenceCounter counter = sequenceCounterRepository.findBySequenceKeyForUpdate(sequenceKey)
+                .orElseGet(() -> {
+                    SequenceCounter created = new SequenceCounter();
+                    created.setSequenceKey(sequenceKey);
+                    created.setLastNumber(0);
+                    return created;
+                });
+
+        int next = counter.getLastNumber() + 1;
+        counter.setLastNumber(next);
+        sequenceCounterRepository.save(counter);
+        return "HC-" + firstLetter + next;
+    }
+
+    private AuditLog createAuditLog(String table, Integer recordId, String action, String oldData, String newData) {
+        AuditLog log = new AuditLog();
+        log.setTableName(table);
+        log.setRecordId(recordId);
+        log.setAction(action);
+        log.setOldData(oldData);
+        log.setNewData(newData);
+        log.setChangedBy("system");
+        return log;
+    }
+
+    private void validateDiscounts(BigDecimal discountPercent, BigDecimal maxDiscountPercent) {
+        BigDecimal discount = defaultPercent(discountPercent);
+        BigDecimal max = defaultPercent(maxDiscountPercent);
+        if (discount.compareTo(BigDecimal.ZERO) < 0 || discount.compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw new IllegalArgumentException("Discount percent must be between 0 and 100");
+        }
+        if (max.compareTo(BigDecimal.ZERO) < 0 || max.compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw new IllegalArgumentException("Max discount percent must be between 0 and 100");
+        }
+        if (discount.compareTo(max) > 0) {
+            throw new IllegalArgumentException("Discount percent cannot exceed max discount percent");
+        }
     }
 }

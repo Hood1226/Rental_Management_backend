@@ -38,6 +38,15 @@ public class BookingItem {
     
     @Column(name = "unit_price", precision = 10, scale = 2)
     private BigDecimal unitPrice;
+
+    @Column(name = "discount_percent", precision = 5, scale = 2)
+    private BigDecimal discountPercent;
+
+    @Column(name = "discount_amount", precision = 12, scale = 2)
+    private BigDecimal discountAmount;
+
+    @Column(name = "final_unit_price", precision = 10, scale = 2)
+    private BigDecimal finalUnitPrice;
     
     @Column(name = "rental_start")
     private LocalDate rentalStart;
@@ -100,6 +109,30 @@ public class BookingItem {
 
 	public void setUnitPrice(BigDecimal unitPrice) {
 		this.unitPrice = unitPrice;
+	}
+
+	public BigDecimal getDiscountPercent() {
+		return discountPercent;
+	}
+
+	public void setDiscountPercent(BigDecimal discountPercent) {
+		this.discountPercent = discountPercent;
+	}
+
+	public BigDecimal getDiscountAmount() {
+		return discountAmount;
+	}
+
+	public void setDiscountAmount(BigDecimal discountAmount) {
+		this.discountAmount = discountAmount;
+	}
+
+	public BigDecimal getFinalUnitPrice() {
+		return finalUnitPrice;
+	}
+
+	public void setFinalUnitPrice(BigDecimal finalUnitPrice) {
+		this.finalUnitPrice = finalUnitPrice;
 	}
 
 	public LocalDate getRentalStart() {

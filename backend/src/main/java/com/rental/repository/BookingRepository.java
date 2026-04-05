@@ -25,6 +25,8 @@ public interface BookingRepository extends JpaRepository<Booking, Integer> {
     
     @Query("SELECT DISTINCT b FROM Booking b JOIN FETCH b.customer")
     List<Booking> findAllWithCustomer();
+
+    boolean existsByBookingNo(String bookingNo);
 }
 
 

@@ -22,7 +22,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/bookings")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3002"}, allowCredentials = "true")
 @Tag(name = "Bookings", description = "Booking management APIs - CRUD operations for bookings")
 @SecurityRequirement(name = "bearerAuth")
 public class BookingController {

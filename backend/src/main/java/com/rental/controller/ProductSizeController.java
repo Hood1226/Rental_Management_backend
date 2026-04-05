@@ -17,7 +17,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/sizes")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3002"}, allowCredentials = "true")
 @Tag(name = "Product Sizes", description = "Product size management APIs")
 @SecurityRequirement(name = "bearerAuth")
 public class ProductSizeController {

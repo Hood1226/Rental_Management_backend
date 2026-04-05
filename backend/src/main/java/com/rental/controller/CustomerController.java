@@ -22,7 +22,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/customers")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3002"}, allowCredentials = "true")
 @Tag(name = "Customers", description = "Customer management APIs - CRUD operations for customers")
 @SecurityRequirement(name = "bearerAuth")
 public class CustomerController {

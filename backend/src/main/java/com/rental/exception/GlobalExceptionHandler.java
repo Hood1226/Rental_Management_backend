@@ -11,9 +11,11 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -29,9 +31,19 @@ public class GlobalExceptionHandler {
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
+        String firstMessage = errors.values().stream().findFirst().orElse("Validation failed");
         logger.warn("Validation failed: {}", errors);
         return ResponseEntity.badRequest()
-                .body(ApiResponse.<Map<String, String>>error("Validation failed", errors));
+                .body(ApiResponse.<Map<String, String>>error(firstMessage, errors));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiResponse<String>> handleResponseStatusException(
+            ResponseStatusException ex) {
+        String reason = ex.getReason() != null ? ex.getReason() : ex.getStatus().getReasonPhrase();
+        logger.warn("Response status: {} - {}", ex.getStatusCode(), reason);
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(ApiResponse.<String>error(reason));
     }
     
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)

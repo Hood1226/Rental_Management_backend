@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,6 +45,18 @@ public class BookingService {
     
     @Autowired
     private InventoryRepository inventoryRepository;
+
+    @Autowired
+    private ShopRepository shopRepository;
+
+    @Autowired
+    private BranchRepository branchRepository;
+
+    @Autowired
+    private SequenceCounterRepository sequenceCounterRepository;
+
+    @Autowired
+    private AuditLogRepository auditLogRepository;
     
     @Transactional(readOnly = true)
     public List<BookingResponse> getAllBookings() {
@@ -81,12 +94,20 @@ public class BookingService {
                     logger.warn("Customer not found with ID: {}", request.getCustomerId());
                     return new ResourceNotFoundException("Customer not found with ID: " + request.getCustomerId());
                 });
+        if (request.getShopId() == null || request.getBranchId() == null) {
+            throw new IllegalArgumentException("Shop ID and Branch ID are required for booking");
+        }
         
         // Create booking
         Booking booking = new Booking();
         booking.setCustomer(customer);
+        booking.setBookingNo(generateBookingNo(request.getBookingType()));
         booking.setBookingType(request.getBookingType());
         booking.setStatus(request.getStatus() != null ? request.getStatus() : "PENDING");
+        booking.setIsAdvanceBooking(request.getIsAdvanceBooking() != null ? request.getIsAdvanceBooking() : false);
+        booking.setScheduledDate(request.getScheduledDate());
+        booking.setAdvancePaymentAmount(request.getAdvancePaymentAmount() != null ? request.getAdvancePaymentAmount() : BigDecimal.ZERO);
+        applyShopAndBranch(booking, request.getShopId(), request.getBranchId());
         
         // Calculate total amount from items if not provided
         BigDecimal totalAmount = request.getTotalAmount();
@@ -99,21 +120,32 @@ public class BookingService {
         
         Booking savedBooking = bookingRepository.save(booking);
         logger.info("Booking created successfully with ID: {}", savedBooking.getBookingId());
+        auditLogRepository.save(createAuditLog("booking", savedBooking.getBookingId(), "INSERT", null,
+                String.format("{\"bookingNo\":\"%s\",\"bookingType\":\"%s\"}", savedBooking.getBookingNo(), savedBooking.getBookingType())));
         
         // Create booking items and automatically update inventory
         if (request.getItems() != null && !request.getItems().isEmpty()) {
+            BigDecimal computedTotal = BigDecimal.ZERO;
             for (BookingRequest.BookingItemRequest itemRequest : request.getItems()) {
                 BookingItem item = createBookingItem(savedBooking, itemRequest);
+                if (item.getSubtotal() != null) {
+                    computedTotal = computedTotal.add(item.getSubtotal());
+                }
                 
                 // Automatically create inventory transaction and update inventory based on booking type
                 updateInventoryForBooking(savedBooking, item, request.getBookingType());
             }
+            savedBooking.setTotalAmount(computedTotal);
+            bookingRepository.save(savedBooking);
         }
         
-        // Create additional inventory transactions if explicitly provided
+        // Create additional inventory transactions only (RETURN/DAMAGE); RENT_OUT/SALE are from booking items
         if (request.getTransactions() != null && !request.getTransactions().isEmpty()) {
             for (BookingRequest.InventoryTransactionRequest transactionRequest : request.getTransactions()) {
-                createInventoryTransaction(savedBooking, transactionRequest);
+                String type = transactionRequest.getTransactionType();
+                if ("RETURN".equals(type) || "DAMAGE".equals(type)) {
+                    createInventoryTransaction(savedBooking, transactionRequest);
+                }
             }
         }
         
@@ -143,38 +175,64 @@ public class BookingService {
         if (request.getBookingType() != null) {
             booking.setBookingType(request.getBookingType());
         }
+        if (request.getShopId() != null || request.getBranchId() != null) {
+            applyShopAndBranch(booking, request.getShopId(), request.getBranchId());
+        }
         if (request.getStatus() != null) {
             booking.setStatus(request.getStatus());
+        }
+        if (request.getIsAdvanceBooking() != null) {
+            booking.setIsAdvanceBooking(request.getIsAdvanceBooking());
+        }
+        if (request.getScheduledDate() != null) {
+            booking.setScheduledDate(request.getScheduledDate());
+        }
+        if (request.getAdvancePaymentAmount() != null) {
+            booking.setAdvancePaymentAmount(request.getAdvancePaymentAmount());
         }
         
         // Update items if provided
         if (request.getItems() != null && !request.getItems().isEmpty()) {
-            // Delete existing items
             List<BookingItem> existingItems = bookingItemRepository.findByBookingBookingId(id);
+            String bookingType = request.getBookingType() != null ? request.getBookingType() : booking.getBookingType();
+            // Restore inventory for removed items before deleting
+            for (BookingItem existingItem : existingItems) {
+                restoreInventoryForBookingItem(existingItem, bookingType);
+            }
+            // Remove auto-created RENT_OUT/SALE transactions for this booking so we can recreate from new items
+            List<InventoryTransaction> rentOrSaleTransactions = transactionRepository
+                    .findByBookingBookingIdAndTransactionTypeIn(id, Arrays.asList("RENT_OUT", "SALE"));
+            transactionRepository.deleteAll(rentOrSaleTransactions);
             bookingItemRepository.deleteAll(existingItems);
             
-            // Create new items
+            // Create new items and reduce inventory for each
             BigDecimal totalAmount = BigDecimal.ZERO;
             for (BookingRequest.BookingItemRequest itemRequest : request.getItems()) {
                 BookingItem item = createBookingItem(booking, itemRequest);
                 if (item.getSubtotal() != null) {
                     totalAmount = totalAmount.add(item.getSubtotal());
                 }
+                updateInventoryForBooking(booking, item, bookingType);
             }
             booking.setTotalAmount(totalAmount);
         } else if (request.getTotalAmount() != null) {
             booking.setTotalAmount(request.getTotalAmount());
         }
         
-        // Update or create transactions if provided
+        // Update or create transactions if provided (only RETURN/DAMAGE for new; always allow update by id)
         if (request.getTransactions() != null && !request.getTransactions().isEmpty()) {
             for (BookingRequest.InventoryTransactionRequest transactionRequest : request.getTransactions()) {
                 if (transactionRequest.getTransactionId() != null) {
-                    // Update existing transaction
-                    updateInventoryTransaction(booking, transactionRequest);
+                    // Skip if transaction was deleted (e.g. RENT_OUT/SALE replaced when items were updated)
+                    if (transactionRepository.existsById(transactionRequest.getTransactionId())) {
+                        updateInventoryTransaction(booking, transactionRequest);
+                    }
                 } else {
-                    // Create new transaction
-                    createInventoryTransaction(booking, transactionRequest);
+                    // Create only additional transaction types (RENT_OUT/SALE are created from booking items)
+                    String type = transactionRequest.getTransactionType();
+                    if ("RETURN".equals(type) || "DAMAGE".equals(type)) {
+                        createInventoryTransaction(booking, transactionRequest);
+                    }
                 }
             }
         }
@@ -201,11 +259,39 @@ public class BookingService {
         item.setUnitPrice(request.getUnitPrice());
         item.setRentalStart(request.getRentalStart());
         item.setRentalEnd(request.getRentalEnd());
-        
+
+        BigDecimal baseUnitPrice = request.getUnitPrice() != null ? request.getUnitPrice() : BigDecimal.ZERO;
+        BigDecimal defaultDiscount = variant.getProduct().getDiscountPercent() != null
+                ? variant.getProduct().getDiscountPercent()
+                : BigDecimal.ZERO;
+        BigDecimal maxDiscount = variant.getProduct().getMaxDiscountPercent() != null
+                ? variant.getProduct().getMaxDiscountPercent()
+                : BigDecimal.ZERO;
+        BigDecimal appliedDiscount = request.getDiscountPercent() != null ? request.getDiscountPercent() : defaultDiscount;
+        if (appliedDiscount.compareTo(maxDiscount) > 0) {
+            throw new IllegalArgumentException(
+                    String.format("Discount %.2f%% exceeds max discount %.2f%% for product %s",
+                            appliedDiscount, maxDiscount, variant.getProduct().getProductName()));
+        }
+        if (appliedDiscount.compareTo(BigDecimal.ZERO) < 0) {
+            appliedDiscount = BigDecimal.ZERO;
+        }
+
+        BigDecimal discountAmountPerUnit = baseUnitPrice
+                .multiply(appliedDiscount)
+                .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+        BigDecimal finalUnitPrice = baseUnitPrice.subtract(discountAmountPerUnit);
+        if (finalUnitPrice.compareTo(BigDecimal.ZERO) < 0) {
+            finalUnitPrice = BigDecimal.ZERO;
+        }
+        item.setDiscountPercent(appliedDiscount);
+        item.setDiscountAmount(discountAmountPerUnit.multiply(BigDecimal.valueOf(request.getQuantity())));
+        item.setFinalUnitPrice(finalUnitPrice);
+
         // Calculate subtotal if not provided
         BigDecimal subtotal = request.getSubtotal();
-        if (subtotal == null && request.getUnitPrice() != null && request.getQuantity() != null) {
-            subtotal = request.getUnitPrice().multiply(BigDecimal.valueOf(request.getQuantity()));
+        if (subtotal == null && request.getQuantity() != null) {
+            subtotal = finalUnitPrice.multiply(BigDecimal.valueOf(request.getQuantity()));
         }
         item.setSubtotal(subtotal != null ? subtotal : BigDecimal.ZERO);
         
@@ -376,12 +462,73 @@ public class BookingService {
         logger.debug("Updated inventory transaction ID: {} for booking ID: {}", 
                 updatedTransaction.getTransactionId(), booking.getBookingId());
         
+        // When a RENT_OUT is marked COMPLETED (returned), restore inventory
+        if (request.getStatus() != null && "COMPLETED".equalsIgnoreCase(request.getStatus()) 
+                && "RENT_OUT".equals(updatedTransaction.getTransactionType())) {
+            restoreInventoryOnReturn(updatedTransaction);
+        }
+        
         // Update or create damage record if provided
         if (request.getDamageRecord() != null) {
             createOrUpdateDamageRecord(updatedTransaction, request.getDamageRecord());
         }
         
         return updatedTransaction;
+    }
+    
+    /**
+     * When a rented item is returned (transaction status = COMPLETED), add quantity back to inventory
+     * and update availability status (AVAILABLE or PARTIALLY_RENTED).
+     */
+    private void restoreInventoryOnReturn(InventoryTransaction transaction) {
+        if (!"RENT_OUT".equals(transaction.getTransactionType()) || transaction.getVariant() == null) {
+            return;
+        }
+        Integer variantId = transaction.getVariant().getVariantId();
+        Inventory inventory = inventoryRepository.findByVariantVariantId(variantId)
+                .orElse(null);
+        if (inventory == null) {
+            logger.warn("Inventory not found for variant ID: {} when restoring on return", variantId);
+            return;
+        }
+        int addBack = transaction.getQuantity() != null ? transaction.getQuantity() : 0;
+        if (addBack <= 0) return;
+        
+        int newQuantity = inventory.getAvailableQuantity() + addBack;
+        inventory.setAvailableQuantity(newQuantity);
+        inventory.setAvailabilityStatus(newQuantity > 0 ? "AVAILABLE" : "UNAVAILABLE");
+        inventory.setExpectedRestoreDate(null);
+        inventory.setNextAvailabilityDate(null);
+        inventoryRepository.save(inventory);
+        logger.info("Restored inventory for variant ID: {} on return. New quantity: {}, Status: {}", 
+                variantId, newQuantity, inventory.getAvailabilityStatus());
+    }
+    
+    /**
+     * Restore inventory when a booking item is removed (e.g. on booking update). Adds quantity back
+     * and clears rented/sold status for that variant.
+     */
+    private void restoreInventoryForBookingItem(BookingItem item, String bookingType) {
+        if (item.getVariant() == null || item.getQuantity() == null || item.getQuantity() <= 0) {
+            return;
+        }
+        Integer variantId = item.getVariant().getVariantId();
+        Inventory inventory = inventoryRepository.findByVariantVariantId(variantId)
+                .orElse(null);
+        if (inventory == null) {
+            logger.warn("Inventory not found for variant ID: {} when restoring for booking item", variantId);
+            return;
+        }
+        int addBack = item.getQuantity();
+        int newQuantity = inventory.getAvailableQuantity() + addBack;
+        inventory.setAvailableQuantity(newQuantity);
+        if (newQuantity > 0) {
+            inventory.setAvailabilityStatus("AVAILABLE");
+        }
+        inventory.setExpectedRestoreDate(null);
+        inventory.setNextAvailabilityDate(null);
+        inventoryRepository.save(inventory);
+        logger.info("Restored inventory for variant ID: {} (booking item). New quantity: {}", variantId, newQuantity);
     }
     
     private DamageRecord createOrUpdateDamageRecord(InventoryTransaction transaction, BookingRequest.DamageRecordRequest request) {
@@ -425,16 +572,72 @@ public class BookingService {
         
         return savedDamage;
     }
+
+    private void applyShopAndBranch(Booking booking, Integer shopId, Integer branchId) {
+        if (shopId != null) {
+            Shop shop = shopRepository.findById(shopId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Shop not found with ID: " + shopId));
+            booking.setShop(shop);
+        }
+        if (branchId != null) {
+            Branch branch = branchRepository.findById(branchId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Branch not found with ID: " + branchId));
+            if (booking.getShop() != null && !branch.getShop().getShopId().equals(booking.getShop().getShopId())) {
+                throw new IllegalArgumentException("Branch does not belong to selected shop");
+            }
+            booking.setBranch(branch);
+        }
+    }
+
+    private String generateBookingNo(String bookingType) {
+        String yy = String.valueOf(LocalDate.now().getYear()).substring(2);
+        String typeCode = "SALE".equalsIgnoreCase(bookingType) ? "S" : "R";
+        String sequenceKey = "BOOKING_" + typeCode + "_" + yy;
+        SequenceCounter counter = sequenceCounterRepository.findBySequenceKeyForUpdate(sequenceKey)
+                .orElseGet(() -> {
+                    SequenceCounter created = new SequenceCounter();
+                    created.setSequenceKey(sequenceKey);
+                    created.setLastNumber(0);
+                    return created;
+                });
+        int next = counter.getLastNumber() + 1;
+        counter.setLastNumber(next);
+        sequenceCounterRepository.save(counter);
+        return "HC" + typeCode + yy + String.format("%03d", next);
+    }
+
+    private AuditLog createAuditLog(String table, Integer recordId, String action, String oldData, String newData) {
+        AuditLog log = new AuditLog();
+        log.setTableName(table);
+        log.setRecordId(recordId);
+        log.setAction(action);
+        log.setOldData(oldData);
+        log.setNewData(newData);
+        log.setChangedBy("system");
+        return log;
+    }
     
     private BookingResponse convertToResponse(Booking booking) {
         BookingResponse response = new BookingResponse();
         response.setBookingId(booking.getBookingId());
+        response.setBookingNo(booking.getBookingNo());
         response.setCustomerId(booking.getCustomer().getCustomerId());
         response.setCustomerName(booking.getCustomer().getCustomerName());
+        if (booking.getShop() != null) {
+            response.setShopId(booking.getShop().getShopId());
+            response.setShopName(booking.getShop().getShopName());
+        }
+        if (booking.getBranch() != null) {
+            response.setBranchId(booking.getBranch().getBranchId());
+            response.setBranchName(booking.getBranch().getBranchName());
+        }
         response.setBookingType(booking.getBookingType());
         response.setBookingDate(booking.getBookingDate());
         response.setStatus(booking.getStatus());
         response.setTotalAmount(booking.getTotalAmount());
+        response.setIsAdvanceBooking(booking.getIsAdvanceBooking());
+        response.setScheduledDate(booking.getScheduledDate());
+        response.setAdvancePaymentAmount(booking.getAdvancePaymentAmount());
         response.setCreatedBy(booking.getCreatedBy());
         response.setCreatedAt(booking.getCreatedAt());
         response.setUpdatedBy(booking.getUpdatedBy());
@@ -453,6 +656,9 @@ public class BookingService {
             itemResponse.setSizeCode(item.getVariant().getSize().getSizeCode());
             itemResponse.setQuantity(item.getQuantity());
             itemResponse.setUnitPrice(item.getUnitPrice());
+            itemResponse.setDiscountPercent(item.getDiscountPercent());
+            itemResponse.setDiscountAmount(item.getDiscountAmount());
+            itemResponse.setFinalUnitPrice(item.getFinalUnitPrice());
             itemResponse.setRentalStart(item.getRentalStart());
             itemResponse.setRentalEnd(item.getRentalEnd());
             itemResponse.setSubtotal(item.getSubtotal());

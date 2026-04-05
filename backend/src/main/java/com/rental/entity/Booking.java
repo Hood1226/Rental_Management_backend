@@ -9,6 +9,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -27,6 +28,17 @@ public class Booking {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
     private CustomerMaster customer;
+
+    @Column(name = "booking_no", length = 30, unique = true)
+    private String bookingNo;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shop_id")
+    private Shop shop;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
     
     @Column(name = "booking_type", length = 20)
     private String bookingType; // RENT / SALE
@@ -40,6 +52,15 @@ public class Booking {
     
     @Column(name = "total_amount", precision = 12, scale = 2)
     private BigDecimal totalAmount;
+
+    @Column(name = "is_advance_booking")
+    private Boolean isAdvanceBooking;
+
+    @Column(name = "scheduled_date")
+    private LocalDate scheduledDate;
+
+    @Column(name = "advance_payment_amount", precision = 12, scale = 2)
+    private BigDecimal advancePaymentAmount;
     
     @Column(name = "created_by", length = 100)
     private String createdBy;
@@ -69,6 +90,30 @@ public class Booking {
 
 	public void setCustomer(CustomerMaster customer) {
 		this.customer = customer;
+	}
+
+	public String getBookingNo() {
+		return bookingNo;
+	}
+
+	public void setBookingNo(String bookingNo) {
+		this.bookingNo = bookingNo;
+	}
+
+	public Shop getShop() {
+		return shop;
+	}
+
+	public void setShop(Shop shop) {
+		this.shop = shop;
+	}
+
+	public Branch getBranch() {
+		return branch;
+	}
+
+	public void setBranch(Branch branch) {
+		this.branch = branch;
 	}
 
 	public String getBookingType() {
@@ -101,6 +146,30 @@ public class Booking {
 
 	public void setTotalAmount(BigDecimal totalAmount) {
 		this.totalAmount = totalAmount;
+	}
+
+	public Boolean getIsAdvanceBooking() {
+		return isAdvanceBooking;
+	}
+
+	public void setIsAdvanceBooking(Boolean isAdvanceBooking) {
+		this.isAdvanceBooking = isAdvanceBooking;
+	}
+
+	public LocalDate getScheduledDate() {
+		return scheduledDate;
+	}
+
+	public void setScheduledDate(LocalDate scheduledDate) {
+		this.scheduledDate = scheduledDate;
+	}
+
+	public BigDecimal getAdvancePaymentAmount() {
+		return advancePaymentAmount;
+	}
+
+	public void setAdvancePaymentAmount(BigDecimal advancePaymentAmount) {
+		this.advancePaymentAmount = advancePaymentAmount;
 	}
 
 	public String getCreatedBy() {
